@@ -318,32 +318,22 @@ class Database:
                 if item['quantity'] > item['available']:
                     return None, f"Недостаточно товара ID {item['product_id']} на складе", []
 
-            # Рассчитываем общую сумму с учетом скидок
-            total = 0
-            cart_items_with_discount = []
+            # Рассчитываем ОБЩЕЕ количество товаров в корзине
+            total_quantity = sum(item['quantity'] for item in cart_items)
 
-            for item in cart_items:
-                quantity = item['quantity']
-                # Применяем скидку в зависимости от количества
-                if quantity == 1:
-                    price_with_discount = 650
-                elif quantity == 2:
-                    price_with_discount = 625
-                elif quantity == 3:
-                    price_with_discount = 600
-                elif quantity == 4:
-                    price_with_discount = 575
-                else:  # 5 и более
-                    price_with_discount = 550
+            # Определяем цену за единицу в зависимости от общего количества
+            if total_quantity == 1:
+                price_per_item = 650
+            elif total_quantity == 2:
+                price_per_item = 625
+            elif total_quantity == 3:
+                price_per_item = 600
+            elif total_quantity == 4:
+                price_per_item = 575
+            else:  # 5 и более
+                price_per_item = 550
 
-                item_total = quantity * price_with_discount
-                total += item_total
-
-                # Создаем копию элемента с ценой со скидкой
-                item_with_discount = item.copy()
-                item_with_discount['price_with_discount'] = price_with_discount
-                item_with_discount['total_with_discount'] = item_total
-                cart_items_with_discount.append(item_with_discount)
+            total = total_quantity * price_per_item
 
             cursor.execute('''
                 INSERT INTO orders (user_id, user_name, total_amount, comment)
@@ -352,12 +342,12 @@ class Database:
 
             order_id = cursor.lastrowid
 
-            # Сохраняем товары с ценами со скидкой
-            for item in cart_items_with_discount:
+            # Сохраняем товары с одинаковой ценой для всех
+            for item in cart_items:
                 cursor.execute('''
                     INSERT INTO order_items (order_id, product_id, quantity, price)
                     VALUES (?, ?, ?, ?)
-                ''', (order_id, item['product_id'], item['quantity'], item['price_with_discount']))
+                ''', (order_id, item['product_id'], item['quantity'], price_per_item))
 
                 cursor.execute('''
                     UPDATE products 
@@ -368,7 +358,14 @@ class Database:
             cursor.execute(
                 'DELETE FROM cart WHERE user_id = ?', (user_id,))
 
-            return order_id, f"{total} рублей", cart_items_with_discount
+            # Создаем список товаров с новой ценой для возврата
+            cart_items_with_new_price = []
+            for item in cart_items:
+                item_copy = item.copy()
+                item_copy['price'] = price_per_item  # Обновляем цену на общую
+                cart_items_with_new_price.append(item_copy)
+
+            return order_id, f"{total} рублей", cart_items_with_new_price
 
         except Exception as e:
             print(f"Ошибка при создании заказа: {e}")
