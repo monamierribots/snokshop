@@ -157,90 +157,125 @@ async def handle_order_comment(message: Message, state: FSMContext):
         )
         return
 
-    order_id, message_text, cart_items = db.create_order(
-        user_id, user_name, comment
-    )
-
-    if order_id:
-        # Формируем сообщение для администратора
-        admin_lines = [
-            f"🆕 <b>НОВЫЙ ЗАКАЗ #{order_id}!</b>",
-            "",
-            f"👤 <b>Покупатель:</b> {user_name}",
-            f"🆔 <b>ID пользователя:</b> {user_id}",
-            f"💰 <b>Сумма заказа:</b> {message_text}",
-            "",
-            "<b>📦 СОСТАВ ЗАКАЗА:</b>",
-            ""
-        ]
-
-        for item in cart_items:
-            item_total = item['quantity'] * item['price']
-            admin_lines.append(
-                f"• {item['name']} ×{item['quantity']} = {format_price(item_total)} руб."
-            )
-
-        admin_lines.extend([
-            "",
-            "<b>📝 КОММЕНТАРИЙ И КОНТАКТЫ:</b>",
-            "",
-            comment,
-            "",
-            f"<i>📅 Дата: {message.date.strftime('%Y-%m-%d %H:%M')}</i>"
-        ])
-
-        admin_text = "\n".join(admin_lines)
-
-        # Отправляем сообщение администратору
-        try:
-            await bot.send_message(
-                chat_id=1012701165,
-                text=admin_text,
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            print(f"Ошибка при отправке уведомления админу: {e}")
-
-        # Сообщение для пользователя
-        success_lines = [
-            f"🎉 <b>ЗАКАЗ #{order_id} УСПЕШНО ОФОРМЛЕН!</b>",
-            "",
-            f"👤 <b>Покупатель:</b> {user_name}",
-            f"💰 <b>Сумма заказа:</b> {message_text}",
-            f"📦 <b>Товаров в заказе:</b> {len(cart_items)}",
-            "",
-            "✅ <i>Товары успешно зарезервированы.</i>",
-            "📞 <i>С вами свяжутся для уточнения</i>",
-            "<i>деталей доставки в ближайшее время.</i>",
-            "",
-            "❄️ <b>Спасибо за покупку!</b>",
-            "<b>Приятного катания! ❄️</b>"
-        ]
-
-        await message.answer(
-            "\n".join(success_lines),
-            parse_mode="HTML",
-            reply_markup=get_main_keyboard()
+    try:
+        # Пробуем создать заказ
+        order_id, message_text, cart_items = db.create_order(
+            user_id, user_name, comment
         )
 
-        await state.set_state(UserStates.main_menu)
-    else:
+        print(
+            f"DEBUG: create_order вернул: order_id={order_id}, message_text='{message_text}'")
+
+        if order_id:
+            # Формируем сообщение для администратора
+            admin_lines = [
+                f"🆕 <b>НОВЫЙ ЗАКАЗ #{order_id}!</b>",
+                "",
+                f"👤 <b>Покупатель:</b> {user_name}",
+                f"🆔 <b>ID пользователя:</b> {user_id}",
+                f"💰 <b>Сумма заказа:</b> {message_text}",
+                "",
+                "<b>📦 СОСТАВ ЗАКАЗА:</b>",
+                ""
+            ]
+
+            for item in cart_items:
+                item_total = item['quantity'] * item['price']
+                admin_lines.append(
+                    f"• {item['name']} ×{item['quantity']} = {format_price(item_total)} руб."
+                )
+
+            admin_lines.extend([
+                "",
+                "<b>📝 КОММЕНТАРИЙ И КОНТАКТЫ:</b>",
+                "",
+                comment,
+                "",
+                f"<i>📅 Дата: {message.date.strftime('%Y-%m-%d %H:%M')}</i>"
+            ])
+
+            admin_text = "\n".join(admin_lines)
+
+            # Отправляем сообщение администратору
+            try:
+                await bot.send_message(
+                    chat_id=1012701165,
+                    text=admin_text,
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                print(f"Ошибка при отправке уведомления админу: {e}")
+
+            # Сообщение для пользователя
+            success_lines = [
+                f"🎉 <b>ЗАКАЗ #{order_id} УСПЕШНО ОФОРМЛЕН!</b>",
+                "",
+                f"👤 <b>Покупатель:</b> {user_name}",
+                f"💰 <b>Сумма заказа:</b> {message_text}",
+                f"📦 <b>Товаров в заказе:</b> {len(cart_items)}",
+                "",
+                "✅ <i>Товары успешно зарезервированы.</i>",
+                "📞 <i>С вами свяжутся для уточнения</i>",
+                "<i>деталей доставки в ближайшее время.</i>",
+                "",
+                "❄️ <b>Спасибо за покупку!</b>",
+                "<b>Приятного катания! ❄️</b>"
+            ]
+
+            await message.answer(
+                "\n".join(success_lines),
+                parse_mode="HTML",
+                reply_markup=get_main_keyboard()
+            )
+
+            await state.set_state(UserStates.main_menu)
+        else:
+            # Показываем более подробную информацию об ошибке
+            print(f"ERROR: create_order вернул ошибку: {message_text}")
+
+            error_lines = [
+                "❌ <b>ОШИБКА ОФОРМЛЕНИЯ ЗАКАЗА</b>",
+                "",
+                f"{message_text}",
+                "",
+                "Возможные причины:",
+                "• Корзина пуста",
+                "• Товаров недостаточно на складе",
+                "• Техническая ошибка",
+                "",
+                "Попробуйте очистить корзину и добавить",
+                "товары заново."
+            ]
+
+            await message.answer(
+                "\n".join(error_lines),
+                parse_mode="HTML",
+                reply_markup=get_cart_keyboard(has_items=True)
+            )
+            await state.set_state(UserStates.viewing_cart)
+
+    except Exception as e:
+        # Ловим любые неожиданные исключения
+        print(f"CRITICAL ERROR в handle_order_comment: {e}")
+        import traceback
+        traceback.print_exc()
+
         error_lines = [
-            "❌ <b>ОШИБКА ОФОРМЛЕНИЯ ЗАКАЗА</b>",
+            "❌ <b>КРИТИЧЕСКАЯ ОШИБКА</b>",
             "",
-            f"{message_text}",
+            "Произошла непредвиденная ошибка.",
+            "Пожалуйста, попробуйте позже или",
+            "обратитесь к администратору.",
             "",
-            "Проверьте корзину и попробуйте снова.",
-            "Если проблема повторяется,",
-            "обратитесь к администратору."
+            f"Ошибка: {str(e)[:100]}"
         ]
 
         await message.answer(
             "\n".join(error_lines),
             parse_mode="HTML",
-            reply_markup=get_cart_keyboard(has_items=True)
+            reply_markup=get_main_keyboard()
         )
-        await state.set_state(UserStates.viewing_cart)
+        await state.set_state(UserStates.main_menu)
 
 
 @router.callback_query(F.data == "clear_cart")
