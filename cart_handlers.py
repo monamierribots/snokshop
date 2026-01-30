@@ -16,6 +16,21 @@ def format_price(price: int) -> str:
     return f"{price:,}".replace(",", " ")
 
 
+# Функция для расчета цены за единицу в зависимости от общего количества
+def calculate_unit_price(total_quantity: int) -> int:
+    """Рассчитывает цену за единицу в зависимости от общего количества товаров"""
+    if total_quantity == 1:
+        return 650
+    elif total_quantity == 2:
+        return 625
+    elif total_quantity == 3:
+        return 600
+    elif total_quantity == 4:
+        return 575
+    else:  # 5 и более
+        return 550
+
+
 @router.message(F.text == "🛒 Корзина")
 async def show_cart(message: Message, state: FSMContext):
     await state.set_state(UserStates.viewing_cart)
@@ -40,27 +55,21 @@ async def show_cart(message: Message, state: FSMContext):
     total_price = 0
     total_items = 0
 
+    # Сначала считаем общее количество товаров в корзине
+    for item in cart_items:
+        total_items += item['quantity']
+
+    # Рассчитываем цену за единицу на основе общего количества
+    unit_price = calculate_unit_price(total_items)
+
     for item in cart_items:
         try:
-            # Определяем цену с учетом скидки
             quantity = item['quantity']
-            if quantity == 1:
-                item_price = 650
-            elif quantity == 2:
-                item_price = 625
-            elif quantity == 3:
-                item_price = 600
-            elif quantity == 4:
-                item_price = 575
-            else:
-                item_price = 550
-
-            item_total = quantity * item_price
+            item_total = quantity * unit_price
             total_price += item_total
-            total_items += quantity
 
             # Форматируем цены
-            price_formatted = format_price(item_price)
+            price_formatted = format_price(unit_price)
             total_formatted = format_price(item_total)
 
             # Добавляем товар с компактным форматированием
