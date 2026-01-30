@@ -75,8 +75,6 @@ class Database:
                 )
             ''')
 
-    # ... (остальные методы без изменений до get_all_products) ...
-
     def get_all_products(self) -> List[Dict[str, Any]]:
         """Получить все товары из базы данных"""
         try:
@@ -301,71 +299,72 @@ class Database:
             with self.connection() as conn:
                 cursor = conn.cursor()
 
-            cursor.execute('''
-                SELECT c.product_id, c.quantity, p.price, p.quantity as available, p.name
-                FROM cart c
-                JOIN products p ON c.product_id = p.id
-                WHERE c.user_id = ?
-            ''', (user_id,))
-
-            rows = cursor.fetchall()
-            cart_items = [dict(row) for row in rows]
-
-            if not cart_items:
-                return None, "Корзина пуста", []
-
-            for item in cart_items:
-                if item['quantity'] > item['available']:
-                    return None, f"Недостаточно товара ID {item['product_id']} на складе", []
-
-            # Рассчитываем ОБЩЕЕ количество товаров в корзине
-            total_quantity = sum(item['quantity'] for item in cart_items)
-
-            # Определяем цену за единицу в зависимости от общего количества
-            if total_quantity == 1:
-                price_per_item = 650
-            elif total_quantity == 2:
-                price_per_item = 625
-            elif total_quantity == 3:
-                price_per_item = 600
-            elif total_quantity == 4:
-                price_per_item = 575
-            else:  # 5 и более
-                price_per_item = 550
-
-            total = total_quantity * price_per_item
-
-            cursor.execute('''
-                INSERT INTO orders (user_id, user_name, total_amount, comment)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, user_name, total, comment))
-
-            order_id = cursor.lastrowid
-
-            # Сохраняем товары с одинаковой ценой для всех
-            for item in cart_items:
                 cursor.execute('''
-                    INSERT INTO order_items (order_id, product_id, quantity, price)
+                    SELECT c.product_id, c.quantity, p.price, p.quantity as available, p.name
+                    FROM cart c
+                    JOIN products p ON c.product_id = p.id
+                    WHERE c.user_id = ?
+                ''', (user_id,))
+
+                rows = cursor.fetchall()
+                cart_items = [dict(row) for row in rows]
+
+                if not cart_items:
+                    return None, "Корзина пуста", []
+
+                for item in cart_items:
+                    if item['quantity'] > item['available']:
+                        return None, f"Недостаточно товара ID {item['product_id']} на складе", []
+
+                # Рассчитываем ОБЩЕЕ количество товаров в корзине
+                total_quantity = sum(item['quantity'] for item in cart_items)
+
+                # Определяем цену за единицу в зависимости от общего количества
+                if total_quantity == 1:
+                    price_per_item = 650
+                elif total_quantity == 2:
+                    price_per_item = 625
+                elif total_quantity == 3:
+                    price_per_item = 600
+                elif total_quantity == 4:
+                    price_per_item = 575
+                else:  # 5 и более
+                    price_per_item = 550
+
+                total = total_quantity * price_per_item
+
+                cursor.execute('''
+                    INSERT INTO orders (user_id, user_name, total_amount, comment)
                     VALUES (?, ?, ?, ?)
-                ''', (order_id, item['product_id'], item['quantity'], price_per_item))
+                ''', (user_id, user_name, total, comment))
 
-                cursor.execute('''
-                    UPDATE products 
-                    SET quantity = quantity - ?
-                    WHERE id = ?
-                ''', (item['quantity'], item['product_id']))
+                order_id = cursor.lastrowid
 
-            cursor.execute(
-                'DELETE FROM cart WHERE user_id = ?', (user_id,))
+                # Сохраняем товары с одинаковой ценой для всех
+                for item in cart_items:
+                    cursor.execute('''
+                        INSERT INTO order_items (order_id, product_id, quantity, price)
+                        VALUES (?, ?, ?, ?)
+                    ''', (order_id, item['product_id'], item['quantity'], price_per_item))
 
-            # Создаем список товаров с новой ценой для возврата
-            cart_items_with_new_price = []
-            for item in cart_items:
-                item_copy = item.copy()
-                item_copy['price'] = price_per_item  # Обновляем цену на общую
-                cart_items_with_new_price.append(item_copy)
+                    cursor.execute('''
+                        UPDATE products 
+                        SET quantity = quantity - ?
+                        WHERE id = ?
+                    ''', (item['quantity'], item['product_id']))
 
-            return order_id, f"{total} рублей", cart_items_with_new_price
+                cursor.execute(
+                    'DELETE FROM cart WHERE user_id = ?', (user_id,))
+
+                # Создаем список товаров с новой ценой для возврата
+                cart_items_with_new_price = []
+                for item in cart_items:
+                    item_copy = item.copy()
+                    # Обновляем цену на общую
+                    item_copy['price'] = price_per_item
+                    cart_items_with_new_price.append(item_copy)
+
+                return order_id, f"{total} рублей", cart_items_with_new_price
 
         except Exception as e:
             print(f"Ошибка при создании заказа: {e}")
