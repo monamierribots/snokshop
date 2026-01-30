@@ -5,6 +5,7 @@ from keyboards import get_cart_keyboard, get_main_keyboard
 from states import UserStates
 from database import db
 from main import bot
+from datetime import timedelta  # Добавлен импорт
 
 router = Router()
 
@@ -167,6 +168,9 @@ async def handle_order_comment(message: Message, state: FSMContext):
             f"DEBUG: create_order вернул: order_id={order_id}, message_text='{message_text}'")
 
         if order_id:
+            # Прибавляем 3 часа к UTC времени для получения московского времени
+            moscow_time = message.date + timedelta(hours=3)
+
             # Формируем сообщение для администратора
             admin_lines = [
                 f"🆕 <b>НОВЫЙ ЗАКАЗ #{order_id}!</b>",
@@ -191,7 +195,7 @@ async def handle_order_comment(message: Message, state: FSMContext):
                 "",
                 comment,
                 "",
-                f"<i>📅 Дата: {message.date.strftime('%Y-%m-%d %H:%M')}</i>"
+                f"<i>📅 Дата: {moscow_time.strftime('%Y-%m-%d %H:%M')} (МСК)</i>"
             ])
 
             admin_text = "\n".join(admin_lines)
