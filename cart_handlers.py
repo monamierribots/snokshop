@@ -8,6 +8,7 @@ from main import bot
 from datetime import timedelta  # Добавлен импорт
 
 router = Router()
+total_price_formatted = 0
 
 # Функция для форматирования цены с разделителями тысяч
 
@@ -89,6 +90,15 @@ async def show_cart(message: Message, state: FSMContext):
     # Добавляем итоговую информацию
     total_price_formatted = format_price(total_price)
 
+    # Сохраняем данные о сумме в состоянии
+    await state.update_data(
+        total_price=total_price,
+        total_price_formatted=total_price_formatted,
+        cart_items=cart_items,
+        total_items=total_items,
+        unit_price=unit_price
+    )
+
     text_lines.extend([
         f"💰 <b>Итого к оплате: {total_price_formatted} рублей</b>",
         f"📦 <b>Всего товаров: {total_items} шт.</b>"
@@ -106,21 +116,49 @@ async def show_cart(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "place_order")
 async def place_order(callback: CallbackQuery, state: FSMContext):
+    # Получаем данные из состояния
+    data = await state.get_data()
+
+    # Если данные есть в состоянии, используем их
+    if 'total_price_formatted' in data:
+        total_price_formatted = data['total_price_formatted']
+    else:
+        # Если нет, вычисляем заново
+        cart_items = db.get_cart_items(callback.from_user.id)
+        total_items = sum(item['quantity'] for item in cart_items)
+        unit_price = calculate_unit_price(total_items)
+
+        total_price = 0
+        for item in cart_items:
+            total_price += item['quantity'] * unit_price
+
+        total_price_formatted = format_price(total_price)
+
+        # Сохраняем в состоянии
+        await state.update_data(
+            total_price=total_price,
+            total_price_formatted=total_price_formatted
+        )
 
     await state.set_state(UserStates.order_comment)
 
     await callback.message.answer_photo(
         photo="AgACAgIAAxkBAAIEQWmA_vMSUfaNgi3fyCNwhmDWcfdPAAJkEmsbhpkJSDiuSJ_WWg9rAQADAgADbQADOAQ",
-        caption='📸 Для оплаты используйте QR-код \n \n'
+        caption=f'📸 Для оплаты используйте QR-код \n \n'
         '⬇️ Или перейдите по ссылке ниже ⬇️\n'
-        '             https://clck.ru/3RbMoB'
+        '             https://clck.ru/3RbMoB \n'
+        ''
+        ''
+        f'💸 К оплате: {total_price_formatted} 💸'
     )
 
     await callback.message.answer(
-        text="❗ Обязательно:\n"
-        "1. Оставьте комментарий к платежу\n"
-        "2. Укажите его в форме заказа\n\n"
-        "📝 Это ускорит обработку вашего заказа"
+        text="✅ Обязательно:\n"
+        ""
+             "1️⃣ Оставьте комментарий к платежу\n"
+             "2️⃣ Укажите его в форме заказа\n\n"
+             ""
+             "📝 Это ускорит обработку вашего заказа"
     )
 
     order_text = [
