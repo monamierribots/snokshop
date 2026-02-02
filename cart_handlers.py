@@ -106,7 +106,22 @@ async def show_cart(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "place_order")
 async def place_order(callback: CallbackQuery, state: FSMContext):
+
     await state.set_state(UserStates.order_comment)
+
+    await callback.message.answer_photo(
+        photo="AgACAgIAAxkBAAIEQWmA_vMSUfaNgi3fyCNwhmDWcfdPAAJkEmsbhpkJSDiuSJ_WWg9rAQADAgADbQADOAQ",
+        caption='📸 Для оплаты используйте QR-код \n \n'
+        '⬇️ Или перейдите по ссылке ниже ⬇️\n'
+        '             https://clck.ru/3RbMoB'
+    )
+
+    await callback.message.answer(
+        text="❗ Обязательно:\n"
+        "1. Оставьте комментарий к платежу\n"
+        "2. Укажите его в форме заказа\n\n"
+        "📝 Это ускорит обработку вашего заказа"
+    )
 
     order_text = [
         "📝 <b>ОФОРМЛЕНИЕ ЗАКАЗА</b>",
@@ -117,10 +132,11 @@ async def place_order(callback: CallbackQuery, state: FSMContext):
         "<i>Пример заполнения:</i>",
         "",
         "• Имя и фамилия: Иван Иванов",
+        "• Юз: @ivantgtestname",
         "• Номер телефона: +7 (999) 123-45-67",
         "• Адрес доставки: г. Москва,",
-        "  ул. Примерная, д. 1, кв. 1",
         "• Время доставки: 14:00-18:00",
+        "• Комментарий: Иван заказ липучки",
         "• Доп. пожелания: Позвонить",
         "  за 30 мин до доставки",
         "",
@@ -132,6 +148,7 @@ async def place_order(callback: CallbackQuery, state: FSMContext):
         "\n".join(order_text),
         parse_mode="HTML"
     )
+
     await callback.answer()
 
 
